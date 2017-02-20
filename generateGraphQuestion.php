@@ -18,7 +18,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  */
-class generateGraphQuestion extends PluginBase {
+class generateGraphQuestion extends \ls\pluginmanager\PluginBase {
     static protected $description = 'Generate graph image in question (with 64 encoded).';
     static protected $name = 'generateGraphQuestion';
 
