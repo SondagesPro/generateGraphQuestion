@@ -18,31 +18,152 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  */
-class generateGraphQuestion extends \ls\pluginmanager\PluginBase {
+class generateGraphQuestion extends PluginBase {
     static protected $description = 'Generate graph image in question (with 64 encoded).';
     static protected $name = 'generateGraphQuestion';
 
+    /**
+     * @var array _aDatasGraphSources
+     * keep in memory , to allow one page view (TODO : control and test)
+     */
+    private $_aDatasGraphSources;
+    /**
+     * @var boolean _pageDone
+     * Graph is done for the page
+     */
+    private $_pageDone;
+
     public function init()
     {
-        $this->subscribe('beforeQuestionRender','generateGraphRender');
+        $this->subscribe('beforeQuestionRender','beforeQuestionRender');
         $this->subscribe('newQuestionAttributes','addGenerateGraphAttribute');
 
         /* To add own translation message source */
         $this->subscribe('afterPluginLoad');
+
+        $this->subscribe('beforeSurveyPage');
+    }
+
+    public function beforeSurveyPage()
+    {
+        $surveyId=$this->getEvent()->get('surveyId');
+        $sessionSurvey=Yii::app()->session["survey_{$surveyId}"];
+        $saveSession=false;
+        /* Fill generateGraphQuestion session */
+        if(!isset($sessionSurvey['generateGraphQuestion'])){
+            $aDatasGraphSources=array(
+                'state'=>'done'
+            );
+            $oQuestionsGraphSource=QuestionAttribute::model()->findAll('attribute=:attribute',array(':attribute'=>'generateGraphSource'));
+            if($oQuestionsGraphSource){
+                $aDatasGraphSources['questions']=array();
+                foreach($oQuestionsGraphSource as $oQuestionGraphSource){
+                    $aGraphData=$this->getGraphData($oQuestionGraphSource->value,$surveyId); // To validate it's OK
+                    if(!empty($aGraphData)){
+                        $aDatasGraphSources['questions'][$oQuestionGraphSource->qid]=array(
+                            'qid'=>$oQuestionGraphSource->qid,
+                            'data'=>trim($oQuestionGraphSource->value),
+                            'done'=>false,
+                        );
+                    }
+                }
+                $aDatasGraphSources['state']='init';
+            }
+            $sessionSurvey['generateGraphQuestion']=$aDatasGraphSources;
+            $saveSession=true;
+        } else {
+            //tracevar($sessionSurvey['generateGraphQuestion']);
+        }
+        $aDatasGraphSources=$sessionSurvey['generateGraphQuestion'];
+        /* Take the step for each question id in graphsource, need EM, then wait for EM contructed */
+        /* This can not be done if survey are all in one page */
+        if($aDatasGraphSources['state']=='init' && isset($sessionSurvey['fieldnamesInfo'])){
+            $oSurvey=Survey::model()->findByPk($surveyId);
+            foreach($aDatasGraphSources['questions'] as $aDataGraphSource){
+                switch($oSurvey->format){
+                    case 'S':
+                        $step=LimeExpressionManager::GetQuestionSeq($aDataGraphSource['qid']);
+                        break;
+                    case 'G':
+                        $oGroupQuestion=Question::model()->find(array("select"=>'gid','condition'=>'qid=:qid','params'=>array(":qid"=>$aDataGraphSource['qid'])));
+                        $step=LimeExpressionManager::GetGroupSeq($oGroupQuestion->gid);
+                        break;
+                    case 'A':
+                    default:
+                        $step=0;
+                }
+
+                $aDatasGraphSources['questions'][$aDataGraphSource['qid']]['step']=$step;
+            }
+            $aDatasGraphSources['state']='step';
+            $saveSession=true;
+        }
+        $this->_aDatasGraphSources=$aDatasGraphSources;
+        if($saveSession){
+            $sessionSurvey['generateGraphQuestion']=$this->_aDatasGraphSources;
+            Yii::app()->session["survey_{$surveyId}"]=$sessionSurvey;
+        }
     }
 
     /**
+     * @see 'beforeQuestionRender'
+     */
+    public function beforeQuestionRender()
+    {
+        if(!$this->_pageDone){
+            $surveyId=$this->getEvent()->get('surveyId');
+            $sessionSurvey=Yii::app()->session["survey_{$surveyId}"];
+            $aDatasGraphSources=$this->_aDatasGraphSources;
+            if($aDatasGraphSources['state']=='step'){
+                $prevStep=$sessionSurvey['prevstep'];
+                $actualStep=$sessionSurvey['step'];
+                foreach($aDatasGraphSources['questions'] as $aDatasGraphQuestion){
+                    $questionStep=$aDatasGraphQuestion['step']+1;
+                    if($prevStep<=$questionStep && $actualStep>=$questionStep){
+                        $aGraphData=$this->getGraphData($aDatasGraphQuestion['data'],$surveyId);
+                        $oQuestion=Question::model()->find("qid=:qid and language=:language",array(":qid"=>$aDatasGraphQuestion['qid'],":language"=>Yii::app()->getLanguage()));
+                        if($oQuestion){
+                            /* Get the title */
+                            $answerSGQ=$oQuestion->sid."X".$oQuestion->gid."X".$oQuestion->qid;
+                            $title=trim(str_replace("[Self.img]","",$oQuestion->question));
+                            $title=LimeExpressionManager::ProcessString($title);
+                            /* Get the size */
+                            $oGenerateGraphSize=QuestionAttribute::model()->find('qid=:qid and attribute=:attribute',array(':qid'=>$this->getEvent()->get('qid'),':attribute'=>'generateGraphSize'));
+                            $generateGraphSize=($oGenerateGraphSize)? $oGenerateGraphSize->value : 400;
+                            /* Generate graph */
+                            $base64image=$this->generateGraphRadar($aGraphData,flattenText($title,false,true),$generateGraphSize);
+                            $_SESSION["survey_{$surveyId}"][$answerSGQ]=$base64image;
+                            $_SESSION["survey_{$surveyId}"]['startingValues'][$answerSGQ]=$base64image;
+                            /* Maybe must save the value in DB */
+                        }
+                    }
+                }
+            }
+            $stepDone=true;
+        }
+        $this->generateGraphRender(); // If this question have to be show
+    }
+    /**
      * generate graph during rendering
+     * @param integer $iSurveyId
      * @see event beforeQuestionRender
      */
     public function generateGraphRender()
     {
         $generateGraphSource=QuestionAttribute::model()->find('qid=:qid and attribute=:attribute',array(':qid'=>$this->getEvent()->get('qid'),':attribute'=>'generateGraphSource'));
+
         if($generateGraphSource){
-            $aGraphData=$this->getGraphData($generateGraphSource->value);
+            $aGraphData=$this->getGraphData($generateGraphSource->value,$this->getEvent()->get('surveyId'));
             if(!empty($aGraphData)){
                 $oEvent=$this->getEvent();
-                $base64image=$this->generateGraphRadar($aGraphData);
+                $title=$oEvent->get('text');
+                $title=trim(str_replace("[Self.img]","",$title));
+                $title=LimeExpressionManager::ProcessString($title);
+                /* Get the size */
+                $oGenerateGraphSize=QuestionAttribute::model()->find('qid=:qid and attribute=:attribute',array(':qid'=>$this->getEvent()->get('qid'),':attribute'=>'generateGraphSize'));
+                $generateGraphSize=($oGenerateGraphSize)? $oGenerateGraphSize->value : 400;
+
+                $base64image=$this->generateGraphRadar($aGraphData,flattenText($title,false,true),$generateGraphSize);
                 /* Fill the session value */
                 $oQuestion=Question::model()->find("qid=:qid",array(':qid'=>$this->getEvent()->get('qid')));
                 $answerSGQ=$oQuestion->sid."X".$oQuestion->gid."X".$oQuestion->qid;
@@ -55,6 +176,8 @@ class generateGraphQuestion extends \ls\pluginmanager\PluginBase {
                 $inputDom=$dom->getElementById("answer".$answerSGQ);
                 if(!is_null($inputDom)){
                     $inputDom->nodeValue = $base64image;
+                    $inputDom->setAttribute('class','hidden');
+                    $inputDom->setAttribute('aria-hidden',true);
                     $newHtml = $dom->saveHTMLExact();
                     $oEvent->set('answers',$newHtml);
                 }
@@ -62,7 +185,7 @@ class generateGraphQuestion extends \ls\pluginmanager\PluginBase {
                 $oEvent->set('text',str_replace("[Self.img]","<img src='{$base64image}' />",$question));
                 $questionhelp=$oEvent->get('questionhelp');
                 $oEvent->set('questionhelp',str_replace("[Self.img]","<img src='{$base64image}' />",$questionhelp));
-
+                $oEvent->set('class',$oEvent->get('class')." graph-question");
             }
         }
     }
@@ -70,45 +193,47 @@ class generateGraphQuestion extends \ls\pluginmanager\PluginBase {
     /**
      * Generate a radar graph according to data and return a base64 image
      * @var array $aData label and serie
+     * @var string $sTitle of the graph
      * @return string
      */
-    public function generateGraphRadar($aData,$sTitle=''){
+    public function generateGraphRadar($aData,$sTitle='',$size=400){
         $aLabels=array_column($aData, 'label');
         $aValues=array_column($aData, 'value');/* Only one serie currently */
         //~ Yii::setPathOfAlias('pChart', dirname(__FILE__)."/vendor/pChart/");
         //~ Yii::import('pChart.pData');
         //~ Yii::import('pChart.pData');
         $fileName="generateGraph".hash("md5",json_encode($aData));
-        require_once(Yii::app()->basePath . '/third_party/pchart/pchart/pChart.class');
-        require_once(Yii::app()->basePath . '/third_party/pchart/pchart/pData.class');
-        require_once(Yii::app()->basePath . '/third_party/pchart/pchart/pCache.class');
+        require_once(__DIR__ . '/vendor/pChart2/class/pData.class.php');
+        require_once(__DIR__ . '/vendor/pChart2/class/pDraw.class.php');
+        require_once(__DIR__ . '/vendor/pChart2/class/pRadar.class.php');
+        require_once(__DIR__ . '/vendor/pChart2/class/pImage.class.php');
+        $DataSet = new pData();
+        $DataSet->addPoints($aValues,"Serie1");
+        $DataSet->setSerieDescription("Serie1","Serie 1");
+
+        $DataSet->addPoints($aLabels,"Labels");
+        $DataSet->setAbscissa("Labels");
+
+        /* TODO : get color and size via a css file in template */
+        $Image = new pImage($size,$size+20,$DataSet);
+        $Settings = array("R"=>250, "G"=>250, "B"=>250);
+        $Image->drawFilledRectangle(0,0,$size,$size+20,$Settings);
+        $Image->drawGradientArea(0,0,$size,20,DIRECTION_VERTICAL,array("StartR"=>0,"StartG"=>0,"StartB"=>0,"EndR"=>50,"EndG"=>50,"EndB"=>50,"Alpha"=>100));
+        $Image->drawRectangle(0,0,$size-1,$size+19,array("R"=>0,"G"=>0,"B"=>0));
         $font=$this->_getChartFontFile();
-        // Dataset definition
-        $DataSet = new pData;
-        $DataSet->AddPoint($aLabels,"Label");
-        $DataSet->AddPoint($aValues);
-        $DataSet->AddSerie("Serie1");
-        $DataSet->SetAbsciseLabelSerie("Label");
-        tracevar(count($DataSet->GetData()));
-        $Test = new pChart(400,400);
-        $Test->setFontProperties($font,8);
-        $Test->drawFilledRoundedRectangle(5,5,395,395,5,230,230,230);
-        $Test->drawFilledRoundedRectangle(30,30,370,370,5,250,250,250);
-
-        $Test->setGraphArea(40,40,360,360);
-
-        // Draw the radar graph
-        $Test->drawRadarAxis($DataSet->GetData(),$DataSet->GetDataDescription(),false,50,0,0,0,255,255,255,200);
-        //~ $Test->drawFilledRadar($DataSet->GetData(),$DataSet->GetDataDescription(),50,20);
-
-        $Test->setFontProperties($font,10);
-        $Test->drawTitle(0,22,$sTitle,50,50,50,400);
+        $Image->setFontProperties(array("FontName"=>$font,"FontSize"=>8));
+        $Image->drawText(10,16,$sTitle,array("R"=>255,"G"=>255,"B"=>255));
+        $Image->setFontProperties(array("FontName"=>$font,"FontSize"=>10,"R"=>80,"G"=>80,"B"=>80));
+        $SplitChart = new pRadar();
+        $Image->setGraphArea(10,25,$size-10,$size-15);
+        $Options=array("Layout"=>RADAR_LAYOUT_STAR);
+        $SplitChart->drawRadar($Image,$DataSet,$Options);
         $path=App()->getRuntimePath().DIRECTORY_SEPARATOR.$fileName.".png";
-        $Test->Render($path);
+        $Image->Render($path);
         $data = file_get_contents($path);
         $base64 = 'data:image/png;base64,' . base64_encode($data);
+        unlink($path);
         return $base64;
-        //~ return base64_encode($contents);
     }
 
     /**
@@ -139,6 +264,15 @@ class generateGraphQuestion extends \ls\pluginmanager\PluginBase {
                 'default'=>'1',
                 'help'=>$this->_translate('Hide visually the question wrapper. If you use hide question : image are only generated when survey is submitted.'),
                 'caption'=>$this->_translate('Hide the question to respondant.'),
+            ),
+            'generateGraphSize'=>array(
+                'types'=>'T', /* long text */
+                'category'=>$this->_translate('Graph'),
+                'sortorder'=>2,
+                'inputtype'=>'integer',
+                'default'=>400,
+                'help'=>$this->_translate('Total size of the graph, in number of pixel.'),
+                'caption'=>$this->_translate('Size.'),
             ),
         );
         if(method_exists($this->getEvent(),'append')) {
@@ -181,16 +315,17 @@ class generateGraphQuestion extends \ls\pluginmanager\PluginBase {
     /**
      * get the graph data for a question
      * @param string $generateGraphSource the data to analyse
-     *
+     * @param integer $iSurveyId
+     * @return array
      */
-    public function getGraphData($generateGraphSource)
+    public function getGraphData($generateGraphSource,$iSurveyId)
     {
         $generateGraphSource=trim($generateGraphSource);
         $aGraphSources=explode("\n",$generateGraphSource);
         $aGraphData=array();
         foreach($aGraphSources as $graphSource){
             $graphSource=trim($graphSource);
-            $aGraphData[]=$this->getDataByCode($graphSource);
+            $aGraphData[]=$this->getDataByCode($graphSource,$iSurveyId);
         }
         $aGraphData=array_filter($aGraphData);
         return $aGraphData;
@@ -198,10 +333,11 @@ class generateGraphQuestion extends \ls\pluginmanager\PluginBase {
 
     /**
      * Get data value from a EM code
-     * @param string : EM code
+     * @param string $emCode : EM code
+     * @parma integer $iSurveyId : survey id
      * @return array|null
      */
-    private function getDataByCode($emCode){
+    private function getDataByCode($emCode,$iSurveyId){
         if(!$emCode){ // invalid
             return;
         }
@@ -211,7 +347,7 @@ class generateGraphQuestion extends \ls\pluginmanager\PluginBase {
         }
         /* Find actual answer + question text */
         $questionCode=$aEmCode[0];
-        $oQuestion=Question::model()->find('title=:title and language=:language',array(':title'=>$questionCode,':language'=>App()->language));
+        $oQuestion=Question::model()->find('title=:title and language=:language and sid=:sid',array(':title'=>$questionCode,':language'=>App()->language,':sid'=>$iSurveyId));
         if(!$oQuestion){ /* Bad question code */
             return;
         }
@@ -225,7 +361,8 @@ class generateGraphQuestion extends \ls\pluginmanager\PluginBase {
             $sgq.=$oSubQuestion->title;
             $text=$oSubQuestion->question;
         }
-        $value=isset($_SESSION["survey_{$oQuestion->sid}"][$sgq]) ? $_SESSION["survey_{$oQuestion->sid}"][$sgq] : null; // Unsure we need to test : always set to null before render, leave it if API are updated
+        $text=LimeExpressionManager::ProcessString($text);
+        $value=isset($_SESSION["survey_{$oQuestion->sid}"][$sgq]) ? $_SESSION["survey_{$oQuestion->sid}"][$sgq] : null;
         return array(
             'label'=>$text,
             'value'=>$value,
@@ -234,7 +371,8 @@ class generateGraphQuestion extends \ls\pluginmanager\PluginBase {
 
 
     /**
-     * just get the font fimle name
+     * just get the font file name
+     * @return string complete filename (with dir)
      */
     private function _getChartFontFile()
     {
