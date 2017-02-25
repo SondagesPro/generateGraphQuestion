@@ -54,7 +54,12 @@ class generateGraphQuestion extends PluginBase {
             $aDatasGraphSources=array(
                 'state'=>'done'
             );
-            $oQuestionsGraphSource=QuestionAttribute::model()->findAll('attribute=:attribute',array(':attribute'=>'generateGraphSource'));
+
+            $criteria = new CDbCriteria;
+            $criteria->join='LEFT JOIN {{questions}} as question ON question.qid=t.qid';
+            $criteria->condition='question.sid = :sid and question.language=:language and attribute=:attribute and value=:value';
+            $criteria->params=array(':sid'=>$surveyId,':language'=>Yii::app()->getLanguage(),':attribute'=>'generateGraphSource',':value'=>1);
+            $oQuestionsGraphSource = QuestionAttribute::model()->findAll($criteria);
             if($oQuestionsGraphSource){
                 $aDatasGraphSources['questions']=array();
                 foreach($oQuestionsGraphSource as $oQuestionGraphSource){
