@@ -27,6 +27,12 @@ class generateGraphQuestion extends PluginBase {
      * keep in memory , to allow one page view (TODO : control and test)
      */
     private $_aDatasGraphSources;
+
+    /**
+     * @var integer $iSurveyId
+     */
+    private $_iSurveyId;
+
     /**
      * @var boolean _pageDone
      * Graph is done for the page
@@ -46,7 +52,7 @@ class generateGraphQuestion extends PluginBase {
 
     public function beforeSurveyPage()
     {
-        $surveyId=$this->getEvent()->get('surveyId');
+        $this->_iSurveyId=$surveyId=$this->getEvent()->get('surveyId');
         $sessionSurvey=Yii::app()->session["survey_{$surveyId}"];
         $saveSession=false;
         /* Fill generateGraphQuestion session */
@@ -166,7 +172,7 @@ class generateGraphQuestion extends PluginBase {
                 $title=LimeExpressionManager::ProcessString($title);
                 /* Get the size */
                 $oGenerateGraphSize=QuestionAttribute::model()->find('qid=:qid and attribute=:attribute',array(':qid'=>$this->getEvent()->get('qid'),':attribute'=>'generateGraphSize'));
-                $generateGraphSize=($oGenerateGraphSize)? $oGenerateGraphSize->value : 400;
+                $generateGraphSize=($oGenerateGraphSize)? $oGenerateGraphSize->value : null;
 
                 $base64image=$this->generateGraphRadar($aGraphData,flattenText($title,false,true),$generateGraphSize);
                 /* Fill the session value */
@@ -201,9 +207,10 @@ class generateGraphQuestion extends PluginBase {
      * @var string $sTitle of the graph
      * @return string
      */
-    public function generateGraphRadar($aData,$sTitle='',$size=400){
+    public function generateGraphRadar($aData,$sTitle='',$size=null){
         $aLabels=array_column($aData, 'label');
         $aValues=array_column($aData, 'value');/* Only one serie currently */
+
         //~ Yii::setPathOfAlias('pChart', dirname(__FILE__)."/vendor/pChart/");
         //~ Yii::import('pChart.pData');
         //~ Yii::import('pChart.pData');
@@ -220,19 +227,24 @@ class generateGraphQuestion extends PluginBase {
         $DataSet->setAbscissa("Labels");
 
         /* TODO : get color and size via a css file in template */
-        $Image = new pImage($size,$size+20,$DataSet);
-        $Settings = array("R"=>250, "G"=>250, "B"=>250);
-        $Image->drawFilledRectangle(0,0,$size,$size+20,$Settings);
-        $Image->drawGradientArea(0,0,$size,20,DIRECTION_VERTICAL,array("StartR"=>0,"StartG"=>0,"StartB"=>0,"EndR"=>50,"EndG"=>50,"EndB"=>50,"Alpha"=>100));
-        $Image->drawRectangle(0,0,$size-1,$size+19,array("R"=>0,"G"=>0,"B"=>0));
+        $graphConfig=$this->_getGraphConfig();
+        $size=intval($size) ? intval($size) : $graphConfig['size'];
+        $headerSize=$graphConfig['header']['size'];
+        $borderSize=$graphConfig['border'];
+        /* Do the image */
+        $Image = new pImage($size,$size+$graphConfig['header']['size'],$DataSet);
+        $Image->drawFilledRectangle(0,0,$size,$size+$headerSize,$graphConfig['bgcolor']);
+        $Image->drawFilledRectangle(0,0,$size,$headerSize,$graphConfig['header']['bgcolor']);
+        $Image->drawRectangle(0,0,$size-1,$size+$headerSize-1,$graphConfig['color']);
         $font=$this->_getChartFontFile();
-        $Image->setFontProperties(array("FontName"=>$font,"FontSize"=>8));
-        $Image->drawText(10,16,$sTitle,array("R"=>255,"G"=>255,"B"=>255));
-        $Image->setFontProperties(array("FontName"=>$font,"FontSize"=>10,"R"=>80,"G"=>80,"B"=>80));
+        $Image->setFontProperties(array("FontName"=>$font,"FontSize"=>$graphConfig['header']['fontsize']));
+        $Image->drawText(10,$headerSize-4,$sTitle,$graphConfig['header']['color']);
+        $Image->setFontProperties(array("FontName"=>$font,"FontSize"=>$graphConfig['fontsize'],"R"=>$graphConfig['color']['R'],"G"=>$graphConfig['color']['G'],"B"=>$graphConfig['color']['B']));
         $SplitChart = new pRadar();
-        $Image->setGraphArea(10,25,$size-10,$size-15);
-        $Options=array("Layout"=>RADAR_LAYOUT_STAR);
-        $SplitChart->drawRadar($Image,$DataSet,$Options);
+        $Image->setGraphArea(10,$headerSize+5,$size-10,$size-15);
+        $chartOptions=$graphConfig['chart'];
+        $chartOptions["Layout"]=RADAR_LAYOUT_STAR;
+        $SplitChart->drawRadar($Image,$DataSet,$chartOptions);
         $path=App()->getRuntimePath().DIRECTORY_SEPARATOR.$fileName.".png";
         $Image->Render($path);
         $data = file_get_contents($path);
@@ -399,5 +411,31 @@ class generateGraphQuestion extends PluginBase {
             }
         }
         return $rootdir.DIRECTORY_SEPARATOR.'fonts'.DIRECTORY_SEPARATOR.$chartfontfile;
+    }
+
+    /**
+     * Get the config for this chart for this survey/template
+     * @return array
+     */
+    private function _getGraphConfig()
+    {
+        $oldValue = libxml_disable_entity_loader(true);
+        $xmlDefaultConfigFile = file_get_contents( realpath (__DIR__ . DIRECTORY_SEPARATOR.'graphQuestion.xml'));
+        $xmlDefaultConfig=simplexml_load_string($xmlDefaultConfigFile);
+        $aConfig=$aDefaultConfig=json_decode(json_encode($xmlDefaultConfig), true);
+        $oTemplate = \Template::model()->getInstance(null, $this->_iSurveyId);
+        tracevar([
+            $oTemplate->filesPath.'graphQuestion.xml',
+            is_file($oTemplate->filesPath.'graphQuestion.xml')
+        ]);
+        if(is_file($oTemplate->filesPath.'graphQuestion.xml')){
+            $xmlTemplateConfigFile=file_get_contents($oTemplate->filesPath.'/graphQuestion.xml');
+            $xmlTemplateConfig=simplexml_load_string($xmlTemplateConfigFile);
+            $aTemplateConfig=json_decode(json_encode($xmlTemplateConfig), true);
+            $aConfig=\CMap::mergeArray($aConfig,$aTemplateConfig);
+        }
+        libxml_disable_entity_loader($oldValue);
+        /* @todo : reset bad value to default config ( color between 0 and 255, intval for size ...) */
+        return $aConfig;
     }
 }
