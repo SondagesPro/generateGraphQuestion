@@ -424,10 +424,6 @@ class generateGraphQuestion extends PluginBase {
         $xmlDefaultConfig=simplexml_load_string($xmlDefaultConfigFile);
         $aConfig=$aDefaultConfig=json_decode(json_encode($xmlDefaultConfig), true);
         $oTemplate = \Template::model()->getInstance(null, $this->_iSurveyId);
-        tracevar([
-            $oTemplate->filesPath.'graphQuestion.xml',
-            is_file($oTemplate->filesPath.'graphQuestion.xml')
-        ]);
         if(is_file($oTemplate->filesPath.'graphQuestion.xml')){
             $xmlTemplateConfigFile=file_get_contents($oTemplate->filesPath.'/graphQuestion.xml');
             $xmlTemplateConfig=simplexml_load_string($xmlTemplateConfigFile);
