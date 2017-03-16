@@ -231,6 +231,7 @@ class generateGraphQuestion extends PluginBase {
         $size=intval($size) ? intval($size) : $graphConfig['size'];
         $headerSize=$graphConfig['header']['size'];
         $borderSize=$graphConfig['border'];
+        $margin=$graphConfig['margin'];
         /* Do the image */
         $Image = new pImage($size,$size+$graphConfig['header']['size'],$DataSet);
         $Image->drawFilledRectangle(0,0,$size,$size+$headerSize,$graphConfig['bgcolor']);
@@ -240,11 +241,12 @@ class generateGraphQuestion extends PluginBase {
         $Image->setFontProperties(array("FontName"=>$font,"FontSize"=>$graphConfig['header']['fontsize']));
         $Image->drawText(10,$headerSize-4,$sTitle,$graphConfig['header']['color']);
         $Image->setFontProperties(array("FontName"=>$font,"FontSize"=>$graphConfig['fontsize'],"R"=>$graphConfig['color']['R'],"G"=>$graphConfig['color']['G'],"B"=>$graphConfig['color']['B']));
-        $SplitChart = new pRadar();
-        $Image->setGraphArea(10,$headerSize+5,$size-10,$size-15);
+        $Chart = new pRadar();
+        $Image->setGraphArea($margin['left'],$headerSize+$margin['top'],$size-$margin['right'],$size-$margin['bottom']);
         $chartOptions=$graphConfig['chart'];
-        $chartOptions["Layout"]=RADAR_LAYOUT_STAR;
-        $SplitChart->drawRadar($Image,$DataSet,$chartOptions);
+        $chartOptions['Layout']=$this->_getFixedValue($chartOptions['Layout']);
+        $chartOptions['LabelPos']=$this->_getFixedValue($chartOptions['LabelPos']);
+        $Chart->drawRadar($Image,$DataSet,$chartOptions);
         $path=App()->getRuntimePath().DIRECTORY_SEPARATOR.$fileName.".png";
         $Image->Render($path);
         $data = file_get_contents($path);
@@ -433,5 +435,20 @@ class generateGraphQuestion extends PluginBase {
         libxml_disable_entity_loader($oldValue);
         /* @todo : reset bad value to default config ( color between 0 and 255, intval for size ...) */
         return $aConfig;
+    }
+
+    /**
+     * Fix some var (by constant)
+     * @param string $param name to test
+     * @return integer|null
+     */
+    private function _getFixedValue($param,$integer=true){
+        if(defined($param)) {
+            return constant($param);
+        }
+        if(ctype_digit($param)) {
+            return $param;
+        }
+        return null;
     }
 }

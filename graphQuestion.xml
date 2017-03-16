@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Configuration for graphQuestion , default part, same xml file in templates/files/graphQuestion.xml to update. -->
+<graph>
+  <!-- size in pix of graph -->
+  <size>400</size>
+  <!-- margin in pix of graph -->
+  <margin>
+    <top>10</top>
+    <right>10</right>
+    <bottom>15</bottom>
+    <left>10</left>
+  </margin>
+  <!-- border size in pix of graph -->
+  <border>1</border>
+  <!-- font size in pix of graph -->
+  <fontsize>8</fontsize>
+  <!-- font color and global of graph -->
+  <color>
+    <R>40</R>
+    <G>40</G>
+    <B>40</B>
+  </color>
+  <!-- background color of graph -->
+  <bgcolor>
+    <R>250</R>
+    <G>250</G>
+    <B>250</B>
+  </bgcolor>
+  <!-- palette file used , see vendor/pChart2/palettes-->
+  <palette></palette>
+  <!-- near same for header -->
+  <header>
+    <size>20</size>
+    <fontsize>8</fontsize>
+    <color>
+      <R>255</R>
+      <G>255</G>
+      <B>255</B>
+    </color>
+    <bgcolor>
+      <R>40</R>
+      <G>40</G>
+      <B>40</B>
+    </bgcolor>
+  </header>
+  <!--Chart format see http://wiki.pchart.net/doc.draw.radar.html -->
+  <chart>
+    <Layout>RADAR_LAYOUT_CIRCLE</Layout>
+    <LabelPos>RADAR_LABELS_ROTATED</LabelPos>
+  </chart>
+</graph>
