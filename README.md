@@ -71,7 +71,6 @@ You can update all part of the chart part, see [pChart documentation](http://wik
 </graph>
 ````
 
-This example is based on
 ## Home page & Copyright
 - HomePage <http://extensions.sondages.pro/>
 - Copyright © 2017 Denis Chenu <https://sondages.pro>
