@@ -1,6 +1,6 @@
 <?php
 /**
- * Description
+ * generateGraphQuestion a plugin for LimeSurvey
  *
  * @author Denis Chenu <denis@sondages.pro>
  * @copyright 2017 Denis Chenu <https://www.sondages.pro>
@@ -182,16 +182,17 @@ class generateGraphQuestion extends PluginBase {
                 /* Update the answer */
                 $_SESSION["survey_{$surveyId}"][$answerSGQ]=$base64image;
                 /* Update the answer input */
-                $dom = new \toolsDomDocument\SmartDOMDocument();
-                $dom->loadPartialHTML($oEvent->get('answers'));
-                $inputDom=$dom->getElementById("answer".$answerSGQ);
-                if(!is_null($inputDom)){
-                    $inputDom->nodeValue = $base64image;
-                    $inputDom->setAttribute('class','hidden');
-                    $inputDom->setAttribute('aria-hidden',true);
-                    $newHtml = $dom->saveHTMLExact();
-                    $oEvent->set('answers',$newHtml);
-                }
+                $htmlInput=CHtml::textArea(
+                    $answerSGQ,
+                    $base64image,
+                    array(
+                        'id'=>"answer{$answerSGQ}",
+                        'aria-hidden'=>true,
+                        'class'=>'hidden',
+                        'style'=>'display:none',
+                    )
+                );
+                $oEvent->set('answers',$htmlInput);
                 $question=$oEvent->get('text');
                 $oEvent->set('text',str_replace("[Self.img]","<img src='{$base64image}' />",$question));
                 $questionhelp=$oEvent->get('questionhelp');
