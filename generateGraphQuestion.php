@@ -3,10 +3,10 @@
  * generateGraphQuestion a plugin for LimeSurvey
  *
  * @author Denis Chenu <denis@sondages.pro>
- * @copyright 2017-2918 Denis Chenu <https://www.sondages.pro>
+ * @copyright 2017-2018 Denis Chenu <https://www.sondages.pro>
  * @copyright 2017 Réseau en scène Languedoc-Roussillon <https://www.reseauenscene.fr>
  * @license AGPL v3
- * @version 2.0.0
+ * @version 2.0.1
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -63,9 +63,10 @@ class generateGraphQuestion extends PluginBase {
 
             $criteria = new CDbCriteria;
             $criteria->join='LEFT JOIN {{questions}} as question ON question.qid=t.qid';
-            $criteria->condition='question.sid = :sid and question.language=:language and attribute=:attribute and value=:value';
-            $criteria->params=array(':sid'=>$surveyId,':language'=>Yii::app()->getLanguage(),':attribute'=>'generateGraphSource',':value'=>1);
+            $criteria->condition='question.sid = :sid and question.language=:language and attribute=:attribute';
+            $criteria->params=array(':sid'=>$surveyId,':language'=>Yii::app()->getLanguage(),':attribute'=>'generateGraphSource');
             $oQuestionsGraphSource = QuestionAttribute::model()->findAll($criteria);
+            
             if($oQuestionsGraphSource){
                 $aDatasGraphSources['questions']=array();
                 foreach($oQuestionsGraphSource as $oQuestionGraphSource){
@@ -250,6 +251,7 @@ class generateGraphQuestion extends PluginBase {
         $Chart->drawRadar($Image,$DataSet,$chartOptions);
         $path=App()->getRuntimePath().DIRECTORY_SEPARATOR.$fileName.".png";
         $Image->Render($path);
+
         $data = file_get_contents($path);
         $base64 = 'data:image/png;base64,' . base64_encode($data);
         unlink($path);
@@ -398,8 +400,8 @@ class generateGraphQuestion extends PluginBase {
     {
         $language=App()->getLanguage();
         $rootdir = Yii::app()->getConfig("rootdir");
-        $chartfontfile = Yii::app()->getConfig("chartfontfile");
-        $alternatechartfontfile = Yii::app()->getConfig("alternatechartfontfile");
+        $chartfontfile = Yii::app()->getConfig("chartfontfile",'auto');
+        $alternatechartfontfile = Yii::app()->getConfig("alternatechartfontfile",array());
         if ($chartfontfile=='auto')
         {
             // Tested with ar,be,el,fa,hu,he,is,lt,mt,sr, and en (english)
@@ -413,7 +415,11 @@ class generateGraphQuestion extends PluginBase {
                 }/* Don't break : just leave DejaVuSans */
             }
         }
+        if(version_compare(App()->getConfig('versionnumber'),'3.0.0','>=')) {
+			return $rootdir.DIRECTORY_SEPARATOR.'assets'.DIRECTORY_SEPARATOR.'fonts'.DIRECTORY_SEPARATOR.$chartfontfile;
+		}
         return $rootdir.DIRECTORY_SEPARATOR.'fonts'.DIRECTORY_SEPARATOR.$chartfontfile;
+        
     }
 
     /**
