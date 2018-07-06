@@ -6,7 +6,7 @@
  * @copyright 2017 Denis Chenu <https://www.sondages.pro>
  * @copyright 2017 Réseau en scène Languedoc-Roussillon <https://www.reseauenscene.fr>
  * @license AGPL v3
- * @version 0.0.1
+ * @version 1.0.0
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
