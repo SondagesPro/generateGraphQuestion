@@ -16,6 +16,7 @@ A plugin for LimeSurvey to generate graph from question in question answer of th
 
 
 ## Documentation
+
 - Activate the plugin
 - Create a long text question type
 - Use the new attribute to set label and value by other question code
@@ -40,8 +41,10 @@ There is 2 solution to show the graph :
 ### Adapt the graph
 
 The generated graph have only one option in question setting : the total size of the grap in pixel.
-You can update all the default setting with a xml file in template upload file directory.
-The plugin read the default settings and, if exist, `graphQuestion.xml` file, you can replace default value here.
+You can update all the default setting with a xml file in template upload file directory or survey uploaded files directory.
+
+The plugin read the default settings and, if exist, `graphQuestion.xml` and `graphQuestionRadar.xml` file in template directory, you can replace default value here.
+The plugin look at survey uploaded files to get `graphQuestion.xml`, `graphQuestionRadar.xml` and `graphQuestionQuestionCode.xml` (replaceQuestionCode by the question code of the graph question) and add it in graph configuration.
 
 You can update color, font size and some margin for the graph wrapper and for the header. Font used use included LimeSurvey system to choose the best font for your language, you can set it globally in your config file.
 

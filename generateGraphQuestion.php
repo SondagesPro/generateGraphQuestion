@@ -6,7 +6,7 @@
  * @copyright 2017-2018 Denis Chenu <https://www.sondages.pro>
  * @copyright 2017 Réseau en scène Languedoc-Roussillon <https://www.reseauenscene.fr>
  * @license AGPL v3
- * @version 2.0.1
+ * @version 2.1.0
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -104,7 +104,6 @@ class generateGraphQuestion extends PluginBase {
                     default:
                         $step=0;
                 }
-
                 $aDatasGraphSources['questions'][$aDataGraphSource['qid']]['step']=$step;
             }
             $aDatasGraphSources['state']='step';
@@ -141,9 +140,9 @@ class generateGraphQuestion extends PluginBase {
                             $title=LimeExpressionManager::ProcessString($title);
                             /* Get the size */
                             $oGenerateGraphSize=QuestionAttribute::model()->find('qid=:qid and attribute=:attribute',array(':qid'=>$this->getEvent()->get('qid'),':attribute'=>'generateGraphSize'));
-                            $generateGraphSize=($oGenerateGraphSize)? $oGenerateGraphSize->value : 400;
+                            $generateGraphSize=!empty($oGenerateGraphSize) ? $oGenerateGraphSize->value : 400;
                             /* Generate graph */
-                            $base64image=$this->generateGraphRadar($aGraphData,flattenText($title,false,true),$generateGraphSize);
+                            $base64image=$this->generateGraphRadar($oQuestion->title,$aGraphData,flattenText($title,false,true),$generateGraphSize);
                             $_SESSION["survey_{$surveyId}"][$answerSGQ]=$base64image;
                             $_SESSION["survey_{$surveyId}"]['startingValues'][$answerSGQ]=$base64image;
                             /* Maybe must save the value in DB */
@@ -175,7 +174,7 @@ class generateGraphQuestion extends PluginBase {
                 $oGenerateGraphSize=QuestionAttribute::model()->find('qid=:qid and attribute=:attribute',array(':qid'=>$this->getEvent()->get('qid'),':attribute'=>'generateGraphSize'));
                 $generateGraphSize=($oGenerateGraphSize)? $oGenerateGraphSize->value : null;
 
-                $base64image=$this->generateGraphRadar($aGraphData,flattenText($title,false,true),$generateGraphSize);
+                $base64image=$this->generateGraphRadar($oEvent->get('code'),$aGraphData,flattenText($title,false,true),$generateGraphSize);
                 /* Fill the session value */
                 $oQuestion=Question::model()->find("qid=:qid",array(':qid'=>$this->getEvent()->get('qid')));
                 $answerSGQ=$oQuestion->sid."X".$oQuestion->gid."X".$oQuestion->qid;
@@ -209,7 +208,7 @@ class generateGraphQuestion extends PluginBase {
      * @var string $sTitle of the graph
      * @return string
      */
-    public function generateGraphRadar($aData,$sTitle='',$size=null){
+    public function generateGraphRadar($qCode,$aData,$sTitle='',$size=null){
         $aLabels=array_column($aData, 'label');
         $aValues=array_column($aData, 'value');/* Only one serie currently */
 
@@ -219,7 +218,6 @@ class generateGraphQuestion extends PluginBase {
         $fileName="generateGraph".hash("md5",json_encode($aData));
         require_once(__DIR__ . '/vendor/pChart2/class/pData.class.php');
         require_once(__DIR__ . '/vendor/pChart2/class/pDraw.class.php');
-        require_once(__DIR__ . '/vendor/pChart2/class/pRadar.class.php');
         require_once(__DIR__ . '/vendor/pChart2/class/pImage.class.php');
         $DataSet = new pData();
         $DataSet->addPoints($aValues,"Serie1");
@@ -229,7 +227,7 @@ class generateGraphQuestion extends PluginBase {
         $DataSet->setAbscissa("Labels");
 
         /* TODO : get color and size via a css file in template */
-        $graphConfig=$this->_getGraphConfig();
+        $graphConfig=$this->_getGraphConfig($qCode);
         $size=intval($size) ? intval($size) : $graphConfig['size'];
         $headerSize=$graphConfig['header']['size'];
         $borderSize=$graphConfig['border'];
@@ -243,12 +241,15 @@ class generateGraphQuestion extends PluginBase {
         $Image->setFontProperties(array("FontName"=>$font,"FontSize"=>$graphConfig['header']['fontsize']));
         $Image->drawText(10,$headerSize-4,$sTitle,$graphConfig['header']['color']);
         $Image->setFontProperties(array("FontName"=>$font,"FontSize"=>$graphConfig['fontsize'],"R"=>$graphConfig['color']['R'],"G"=>$graphConfig['color']['G'],"B"=>$graphConfig['color']['B']));
+        /* Here start the radar */
+        require_once(__DIR__ . '/vendor/pChart2/class/pRadar.class.php');
         $Chart = new pRadar();
         $Image->setGraphArea($margin['left'],$headerSize+$margin['top'],$size-$margin['right'],$size-$margin['bottom']);
         $chartOptions=$graphConfig['chart'];
         $chartOptions['Layout']=$this->_getFixedValue($chartOptions['Layout']);
         $chartOptions['LabelPos']=$this->_getFixedValue($chartOptions['LabelPos']);
         $Chart->drawRadar($Image,$DataSet,$chartOptions);
+        /* Here end the radar */
         $path=App()->getRuntimePath().DIRECTORY_SEPARATOR.$fileName.".png";
         $Image->Render($path);
 
@@ -416,8 +417,8 @@ class generateGraphQuestion extends PluginBase {
             }
         }
         if(version_compare(App()->getConfig('versionnumber'),'3.0.0','>=')) {
-			return $rootdir.DIRECTORY_SEPARATOR.'assets'.DIRECTORY_SEPARATOR.'fonts'.DIRECTORY_SEPARATOR.$chartfontfile;
-		}
+            return $rootdir.DIRECTORY_SEPARATOR.'assets'.DIRECTORY_SEPARATOR.'fonts'.DIRECTORY_SEPARATOR.$chartfontfile;
+        }
         return $rootdir.DIRECTORY_SEPARATOR.'fonts'.DIRECTORY_SEPARATOR.$chartfontfile;
         
     }
@@ -426,24 +427,48 @@ class generateGraphQuestion extends PluginBase {
      * Get the config for this chart for this survey/template
      * @return array
      */
-    private function _getGraphConfig()
+    private function _getGraphConfig($qCode, $graphType = "Radar")
     {
         $oldValue = libxml_disable_entity_loader(true);
-        $xmlDefaultConfigFile = file_get_contents( realpath (__DIR__ . DIRECTORY_SEPARATOR.'graphQuestion.xml'));
-        $xmlDefaultConfig=simplexml_load_string($xmlDefaultConfigFile);
-        $aConfig=$aDefaultConfig=json_decode(json_encode($xmlDefaultConfig), true);
+        $aConfig = $this->_addXmlConfig(realpath(__DIR__ .DIRECTORY_SEPARATOR.'graphQuestion.xml'));
+        $aConfig = $this->_addXmlConfig(realpath(__DIR__ .DIRECTORY_SEPARATOR.'graphQuestion'.$graphType.'.xml'),$aConfig);
+        /* By template files */
         $oTemplate = \Template::model()->getInstance(null, $this->_iSurveyId);
         if(is_file($oTemplate->filesPath.'graphQuestion.xml')){
-            $xmlTemplateConfigFile=file_get_contents($oTemplate->filesPath.'/graphQuestion.xml');
-            $xmlTemplateConfig=simplexml_load_string($xmlTemplateConfigFile);
-            $aTemplateConfig=json_decode(json_encode($xmlTemplateConfig), true);
-            $aConfig=\CMap::mergeArray($aConfig,$aTemplateConfig);
+            $aConfig = $this->_addXmlConfig($oTemplate->filesPath.'graphQuestion.xml',$aConfig);
+        }
+        if(is_file($oTemplate->filesPath.'graphQuestion'.$graphType.'.xml')){
+            $aConfig = $this->_addXmlConfig($oTemplate->filesPath.'graphQuestion'.$graphType.'.xml',$aConfig);
+        }
+        /* By survey files */
+        $surveyDir = Yii::app()->getConfig('uploaddir')."/surveys/{$this->_iSurveyId}/files/";
+        if(is_file($surveyDir.'graphQuestion.xml')){
+            $aConfig = $this->_addXmlConfig($surveyDir.'graphQuestion.xml',$aConfig);
+        }
+        if(is_file($surveyDir.'graphQuestion'.$graphType.'.xml')){
+            $aConfig = $this->_addXmlConfig($surveyDir.'graphQuestion'.$graphType.'.xml',$aConfig);
+        }
+        
+        if(is_file($surveyDir.'graphQuestion'.$qCode.'.xml')){
+            $aConfig = $this->_addXmlConfig($surveyDir.'graphQuestion'.$qCode.'.xml',$aConfig);
         }
         libxml_disable_entity_loader($oldValue);
         /* @todo : reset bad value to default config ( color between 0 and 255, intval for size ...) */
         return $aConfig;
     }
 
+    /**
+     * Add a config file to the config
+     * @param strinf $file that must exist
+     * @param array $config to update
+     * @return array updated config
+     */
+    private function _addXmlConfig($file, $config = array())
+    {
+        $xmlConfigFile = file_get_contents($file);
+        $xmlConfig = simplexml_load_string($xmlConfigFile);
+        return \CMap::mergeArray($config,json_decode(json_encode($xmlConfig), true));
+    }
     /**
      * Fix some var (by constant)
      * @param string $param name to test

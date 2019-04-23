@@ -22,9 +22,9 @@
   </color>
   <!-- background color of graph -->
   <bgcolor>
-    <R>250</R>
-    <G>250</G>
-    <B>250</B>
+    <R>255</R>
+    <G>255</G>
+    <B>255</B>
   </bgcolor>
   <!-- palette file used , see vendor/pChart2/palettes-->
   <palette></palette>
@@ -43,9 +43,4 @@
       <B>40</B>
     </bgcolor>
   </header>
-  <!--Chart format see http://wiki.pchart.net/doc.draw.radar.html -->
-  <chart>
-    <Layout>RADAR_LAYOUT_CIRCLE</Layout>
-    <LabelPos>RADAR_LABELS_ROTATED</LabelPos>
-  </chart>
 </graph>

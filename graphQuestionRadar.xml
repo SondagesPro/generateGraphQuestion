@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Configuration for graphQuestion , default part, same xml file in templates/files/graphQuestionRadar.xml to update. -->
+<graph>
+  <!--Chart format see http://wiki.pchart.net/doc.draw.radar.html -->
+  <chart>
+    <Layout>RADAR_LAYOUT_CIRCLE</Layout>
+    <LabelPos>RADAR_LABELS_ROTATED</LabelPos>
+  </chart>
+</graph>
