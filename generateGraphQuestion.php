@@ -6,7 +6,7 @@
  * @copyright 2017-2018 Denis Chenu <https://www.sondages.pro>
  * @copyright 2017 Réseau en scène Languedoc-Roussillon <https://www.reseauenscene.fr>
  * @license AGPL v3
- * @version 2.1.0
+ * @version 2.2.0
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -225,9 +225,14 @@ class generateGraphQuestion extends PluginBase {
 
         $DataSet->addPoints($aLabels,"Labels");
         $DataSet->setAbscissa("Labels");
-
         /* TODO : get color and size via a css file in template */
         $graphConfig=$this->_getGraphConfig($qCode);
+        /* palettes */
+        if(!is_empty($graphConfig['palette']) && is_file(__DIR__ . '/vendor/pChart2/palettes/'.$graphConfig['palette'].'.color')) {
+            /* Todo : check inside template/survey dir */
+            $DataSet->loadPalette(__DIR__ . '/vendor/pChart2/palettes/'.$graphConfig['palette'].'.color', TRUE);
+        }
+
         $size=intval($size) ? intval($size) : $graphConfig['size'];
         $headerSize=$graphConfig['header']['size'];
         $borderSize=$graphConfig['border'];
@@ -241,6 +246,7 @@ class generateGraphQuestion extends PluginBase {
         $Image->setFontProperties(array("FontName"=>$font,"FontSize"=>$graphConfig['header']['fontsize']));
         $Image->drawText(10,$headerSize-4,$sTitle,$graphConfig['header']['color']);
         $Image->setFontProperties(array("FontName"=>$font,"FontSize"=>$graphConfig['fontsize'],"R"=>$graphConfig['color']['R'],"G"=>$graphConfig['color']['G'],"B"=>$graphConfig['color']['B']));
+
         /* Here start the radar */
         require_once(__DIR__ . '/vendor/pChart2/class/pRadar.class.php');
         $Chart = new pRadar();
