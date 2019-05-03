@@ -228,7 +228,7 @@ class generateGraphQuestion extends PluginBase {
         /* TODO : get color and size via a css file in template */
         $graphConfig=$this->_getGraphConfig($qCode);
         /* palettes */
-        if(!is_empty($graphConfig['palette']) && is_file(__DIR__ . '/vendor/pChart2/palettes/'.$graphConfig['palette'].'.color')) {
+        if(!empty($graphConfig['palette']) && is_file(__DIR__ . '/vendor/pChart2/palettes/'.$graphConfig['palette'].'.color')) {
             /* Todo : check inside template/survey dir */
             $DataSet->loadPalette(__DIR__ . '/vendor/pChart2/palettes/'.$graphConfig['palette'].'.color', TRUE);
         }
