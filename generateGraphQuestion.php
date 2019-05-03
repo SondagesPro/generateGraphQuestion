@@ -6,7 +6,7 @@
  * @copyright 2017-2018 Denis Chenu <https://www.sondages.pro>
  * @copyright 2017 Réseau en scène Languedoc-Roussillon <https://www.reseauenscene.fr>
  * @license AGPL v3
- * @version 2.2.0
+ * @version 3.0.0
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -134,6 +134,7 @@ class generateGraphQuestion extends PluginBase {
                         $aGraphData=$this->getGraphData($aDatasGraphQuestion['data'],$surveyId);
                         $oQuestion=Question::model()->find("qid=:qid and language=:language",array(":qid"=>$aDatasGraphQuestion['qid'],":language"=>Yii::app()->getLanguage()));
                         if($oQuestion){
+                            $sType = 'Radar';
                             /* Get the title */
                             $answerSGQ=$oQuestion->sid."X".$oQuestion->gid."X".$oQuestion->qid;
                             $title=trim(str_replace("[Self.img]","",$oQuestion->question));
@@ -142,7 +143,7 @@ class generateGraphQuestion extends PluginBase {
                             $oGenerateGraphSize=QuestionAttribute::model()->find('qid=:qid and attribute=:attribute',array(':qid'=>$this->getEvent()->get('qid'),':attribute'=>'generateGraphSize'));
                             $generateGraphSize=!empty($oGenerateGraphSize) ? $oGenerateGraphSize->value : 400;
                             /* Generate graph */
-                            $base64image=$this->generateGraphRadar($oQuestion->title,$aGraphData,flattenText($title,false,true),$generateGraphSize);
+                            $base64image=$this->generateGraph($oQuestion->title,$aGraphData,$sType,flattenText($title,false,true),$generateGraphSize);
                             $_SESSION["survey_{$surveyId}"][$answerSGQ]=$base64image;
                             $_SESSION["survey_{$surveyId}"]['startingValues'][$answerSGQ]=$base64image;
                             /* Maybe must save the value in DB */
@@ -172,9 +173,10 @@ class generateGraphQuestion extends PluginBase {
                 $title=LimeExpressionManager::ProcessString($title);
                 /* Get the size */
                 $oGenerateGraphSize=QuestionAttribute::model()->find('qid=:qid and attribute=:attribute',array(':qid'=>$this->getEvent()->get('qid'),':attribute'=>'generateGraphSize'));
+                $sType = 'Radar';
                 $generateGraphSize=($oGenerateGraphSize)? $oGenerateGraphSize->value : null;
 
-                $base64image=$this->generateGraphRadar($oEvent->get('code'),$aGraphData,flattenText($title,false,true),$generateGraphSize);
+                $base64image=$this->generateGraph($oEvent->get('code'),$aGraphData,$sType,flattenText($title,false,true),$generateGraphSize);
                 /* Fill the session value */
                 $oQuestion=Question::model()->find("qid=:qid",array(':qid'=>$this->getEvent()->get('qid')));
                 $answerSGQ=$oQuestion->sid."X".$oQuestion->gid."X".$oQuestion->qid;
@@ -208,7 +210,7 @@ class generateGraphQuestion extends PluginBase {
      * @var string $sTitle of the graph
      * @return string
      */
-    public function generateGraphRadar($qCode,$aData,$sTitle='',$size=null){
+    public function generateGraph($qCode,$aData,$sType = 'Radar', $sTitle='',$size=null){
         $aLabels=array_column($aData, 'label');
         $aValues=array_column($aData, 'value');/* Only one serie currently */
 
@@ -233,29 +235,38 @@ class generateGraphQuestion extends PluginBase {
             $DataSet->loadPalette(__DIR__ . '/vendor/pChart2/palettes/'.$graphConfig['palette'].'.color', TRUE);
         }
 
-        $size=intval($size) ? intval($size) : $graphConfig['size'];
+        $size = intval($size) ? intval($size) : $graphConfig['size'];
         $headerSize=$graphConfig['header']['size'];
         $borderSize=$graphConfig['border'];
         $margin=$graphConfig['margin'];
         /* Do the image */
         $Image = new pImage($size,$size+$graphConfig['header']['size'],$DataSet);
         $Image->drawFilledRectangle(0,0,$size,$size+$headerSize,$graphConfig['bgcolor']);
-        $Image->drawFilledRectangle(0,0,$size,$headerSize,$graphConfig['header']['bgcolor']);
-        $Image->drawRectangle(0,0,$size-1,$size+$headerSize-1,$graphConfig['color']);
+        if($headerSize) {
+            $Image->drawFilledRectangle(0,0,$size,$headerSize,$graphConfig['header']['bgcolor']);
+            $Image->drawRectangle(0,0,$size-1,$size+$headerSize-1,$graphConfig['color']);
+        } else {
+            $Image->drawRectangle(0,0,$size-1,$size-1,$graphConfig['color']);
+        }
         $font=$this->_getChartFontFile();
-        $Image->setFontProperties(array("FontName"=>$font,"FontSize"=>$graphConfig['header']['fontsize']));
-        $Image->drawText(10,$headerSize-4,$sTitle,$graphConfig['header']['color']);
+        if($headerSize) {
+            $Image->setFontProperties(array("FontName"=>$font,"FontSize"=>$graphConfig['header']['fontsize']));
+            $Image->drawText(10,$headerSize-4,$sTitle,$graphConfig['header']['color']);
+        }
         $Image->setFontProperties(array("FontName"=>$font,"FontSize"=>$graphConfig['fontsize'],"R"=>$graphConfig['color']['R'],"G"=>$graphConfig['color']['G'],"B"=>$graphConfig['color']['B']));
 
-        /* Here start the radar */
-        require_once(__DIR__ . '/vendor/pChart2/class/pRadar.class.php');
-        $Chart = new pRadar();
-        $Image->setGraphArea($margin['left'],$headerSize+$margin['top'],$size-$margin['right'],$size-$margin['bottom']);
-        $chartOptions=$graphConfig['chart'];
-        $chartOptions['Layout']=$this->_getFixedValue($chartOptions['Layout']);
-        $chartOptions['LabelPos']=$this->_getFixedValue($chartOptions['LabelPos']);
-        $Chart->drawRadar($Image,$DataSet,$chartOptions);
-        /* Here end the radar */
+        switch ($sType) {
+
+            case 'Radar':
+            default:
+                require_once(__DIR__ . '/vendor/pChart2/class/pRadar.class.php');
+                $Chart = new pRadar();
+                $Image->setGraphArea($margin['left'],$headerSize+$margin['top'],$size-$margin['right'],$size-$margin['bottom']);
+                $chartOptions=$graphConfig['chart'];
+                $chartOptions['Layout']=$this->_getFixedValue($chartOptions['Layout']);
+                $chartOptions['LabelPos']=$this->_getFixedValue($chartOptions['LabelPos']);
+                $Chart->drawRadar($Image,$DataSet,$chartOptions);
+        }
         $path=App()->getRuntimePath().DIRECTORY_SEPARATOR.$fileName.".png";
         $Image->Render($path);
 
@@ -460,6 +471,7 @@ class generateGraphQuestion extends PluginBase {
         }
         libxml_disable_entity_loader($oldValue);
         /* @todo : reset bad value to default config ( color between 0 and 255, intval for size ...) */
+        array_filter($aConfig);
         return $aConfig;
     }
 
@@ -484,7 +496,7 @@ class generateGraphQuestion extends PluginBase {
         if(defined($param)) {
             return constant($param);
         }
-        if(ctype_digit($param)) {
+        if($integer && ctype_digit($param)) {
             return $param;
         }
         return null;
