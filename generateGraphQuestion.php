@@ -6,7 +6,7 @@
  * @copyright 2017-2018 Denis Chenu <https://www.sondages.pro>
  * @copyright 2017 Réseau en scène Languedoc-Roussillon <https://www.reseauenscene.fr>
  * @license AGPL v3
- * @version 3.0.0
+ * @version 3.0.1
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -77,6 +77,7 @@ class generateGraphQuestion extends PluginBase {
                             'data'=>trim($oQuestionGraphSource->value),
                             'done'=>false,
                         );
+                        $this->_fixSqlDataType($surveyId,$oQuestionGraphSource->qid);
                     }
                 }
                 $aDatasGraphSources['state']='init';
@@ -500,5 +501,27 @@ class generateGraphQuestion extends PluginBase {
             return $param;
         }
         return null;
+    }
+
+    /**
+     * MYSQL need LONGTEXT
+     * @var $sid survey id
+     * @var $qid question id
+     * @return void
+     */
+    private function _fixSqlDataType($sid,$qid)
+    {
+        if(!in_array(Yii::app()->db->driverName,array('mysql','mysqli'))) {
+            return;
+        }
+        if(Survey::model()->findByPk($sid)->active != "Y") {
+            return;
+        }
+        $tableName = Response::model($sid)->tableName();
+        $oQuestion = Question::model()->find("qid = :qid",array(":qid"=>$qid));
+        $column = "{$sid}X{$oQuestion->gid}X{$qid}";
+        if(Yii::app()->db->getSchema()->getTable($tableName)->getColumn($column)->dbType == "text") {
+            Yii::app()->db->createCommand()->alterColumn($tableName,$column,"LONGTEXT NULL DEFAULT NULL");
+        }
     }
 }
