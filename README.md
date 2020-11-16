@@ -26,8 +26,13 @@ A plugin for LimeSurvey to generate graph from question in question answer of th
 - The graph title was the question text
 - The graph image was save as question answer in base 64 encoded format.
 - You can use Expression Manager in title or label
+- The construction of the graph is done via PHP : **The graph can not be shown in same page of the source**.
 
-_tip_ You can use Equation question type for the label and value.
+
+### Some tips
+
+- You can use Equation question type for the label and value.
+- With Equation question type : you must use the [equation setting](https://manual.limesurvey.org/Question_type_-_Equation#Equation_.28equation.29) for the value, question text are used for label.
 
 ### Show the graph
 
