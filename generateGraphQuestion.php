@@ -6,7 +6,7 @@
  * @copyright 2017-2018 Denis Chenu <https://www.sondages.pro>
  * @copyright 2017 Réseau en scène Languedoc-Roussillon <https://www.reseauenscene.fr>
  * @license AGPL v3
- * @version 3.0.1
+ * @version 3.0.2
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -52,6 +52,9 @@ class generateGraphQuestion extends PluginBase {
 
     public function beforeSurveyPage()
     {
+        if (!$this->getEvent()) {
+            throw new CHttpException(403);
+        }
         $this->_iSurveyId=$surveyId=$this->getEvent()->get('surveyId');
         $sessionSurvey=Yii::app()->session["survey_{$surveyId}"];
         $saveSession=false;
@@ -122,6 +125,9 @@ class generateGraphQuestion extends PluginBase {
      */
     public function beforeQuestionRender()
     {
+        if (!$this->getEvent()) {
+            throw new CHttpException(403);
+        }
         if(!$this->_pageDone){
             $surveyId=$this->getEvent()->get('surveyId');
             $sessionSurvey=Yii::app()->session["survey_{$surveyId}"];
@@ -161,7 +167,7 @@ class generateGraphQuestion extends PluginBase {
      * @param integer $iSurveyId
      * @see event beforeQuestionRender
      */
-    public function generateGraphRender()
+    private function generateGraphRender()
     {
         $generateGraphSource=QuestionAttribute::model()->find('qid=:qid and attribute=:attribute',array(':qid'=>$this->getEvent()->get('qid'),':attribute'=>'generateGraphSource'));
 
@@ -211,7 +217,7 @@ class generateGraphQuestion extends PluginBase {
      * @var string $sTitle of the graph
      * @return string
      */
-    public function generateGraph($qCode,$aData,$sType = 'Radar', $sTitle='',$size=null){
+    private function generateGraph($qCode,$aData,$sType = 'Radar', $sTitle='',$size=null){
         $aLabels=array_column($aData, 'label');
         $aValues=array_column($aData, 'value');/* Only one serie currently */
 
@@ -283,6 +289,9 @@ class generateGraphQuestion extends PluginBase {
      */
     public function addGenerateGraphAttribute()
     {
+        if (!$this->getEvent()) {
+            throw new CHttpException(403);
+        }
         $generateGraphAttributes = array(
             'generateGraphSource'=>array(
                 'types'=>'T', /* long text */
@@ -359,7 +368,7 @@ class generateGraphQuestion extends PluginBase {
      * @param integer $iSurveyId
      * @return array
      */
-    public function getGraphData($generateGraphSource,$iSurveyId)
+    private function getGraphData($generateGraphSource,$iSurveyId)
     {
         $generateGraphSource=trim($generateGraphSource);
         $aGraphSources=explode("\n",$generateGraphSource);
