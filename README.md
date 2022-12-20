@@ -5,6 +5,8 @@ A plugin for LimeSurvey to generate graph from question in question answer of th
 
 ## Installation
 
+This plugin need PHP7.0 and up.
+
 ### Via GIT
 - Go to your LimeSurvey Directory
 - Clone in plugins/generateGraphQuestion directory `git clone https://git.framasoft.org/SondagePro-LimeSurvey-plugin/generateGraphQuestion.git generateGraphQuestion`
